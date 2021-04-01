@@ -19,6 +19,8 @@ interface CartContextData {
   updateProductAmount: ({ productId, amount }: UpdateProductAmount) => void;
 }
 
+type ProductResponse = Omit<Product, 'amount'>
+
 const CartContext = createContext<CartContextData>({} as CartContextData);
 
 export function CartProvider({ children }: CartProviderProps): JSX.Element {
@@ -34,9 +36,43 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
 
   const addProduct = async (productId: number) => {
     try {
-      // TODO
-    } catch {
-      // TODO
+      const stockReponse = await api.get(`/stock?id=${productId}`)
+      const { amount : productsInStock } = stockReponse.data[0];
+      
+      const productIndex = cart.findIndex(product => productId === product.id);
+
+      const productExistsInCart = productIndex !== -1;
+      
+      if(productExistsInCart) {
+        const product = {...cart[productIndex]};
+        product.amount += 1;
+
+        const updatedCart = [ ...cart ];
+        updatedCart[productIndex] = product;
+        
+        if(productsInStock < product.amount) {
+          toast.error('Quantidade solicitada fora de estoque');
+          return;
+        }
+
+        setCart(updatedCart);
+      } else {
+        if(productsInStock < 1) {
+          toast.error('Quantidade solicitada fora de estoque');
+          return;
+        }
+
+        const productResponse = await api.get<ProductResponse[]>(`/products?id=${productId}`);
+        const { id, image, price, title } = productResponse.data[0];
+
+        const newProduct = { id, image, price, title, amount: 1 };
+
+        setCart([ ...cart,  newProduct ]);
+      }
+
+    } catch(error) {
+      console.error(error);
+      toast.error('Erro na adição do produto');
     }
   };
 
